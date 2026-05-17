@@ -25,7 +25,7 @@ ENV PYTHONUNBUFFERED=1 \
     LLAMA_HOST=127.0.0.1 \
     LLAMA_PORT=8080 \
     API_HOST=0.0.0.0 \
-    API_PORT=8000 \
+    API_PORT=4547 \
     CTX_SIZE=4096 \
     N_GPU_LAYERS=0 \
     THREADS=0
@@ -49,6 +49,6 @@ COPY examples ./examples
 
 RUN chmod +x ./scripts/*.sh ./examples/*.sh
 
-EXPOSE 8000
+EXPOSE 4547
 
 CMD ["./scripts/start.sh"]

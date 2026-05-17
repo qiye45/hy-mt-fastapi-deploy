@@ -54,7 +54,7 @@ source .venv/bin/activate
 
 服务启动后：
 
-- FastAPI: `http://127.0.0.1:8000`
+- FastAPI: `http://127.0.0.1:4547`
 - 内部 llama-server: `http://127.0.0.1:8080`
 
 ## 使用 Hugging Face GGUF 仓库部署示例
@@ -112,7 +112,7 @@ MODEL_PATH=./models/Hy-MT1.5-1.8B-1.25bit-GGUF/Hy-MT1.5-1.8B-1.25bit.gguf
 LLAMA_CPP_DIR=./vendor/llama.cpp
 LLAMA_SERVER_URL=http://127.0.0.1:8080
 LLAMA_PORT=8080
-API_PORT=8000
+API_PORT=4547
 CTX_SIZE=4096
 THREADS=0
 N_GPU_LAYERS=0
@@ -126,7 +126,7 @@ EOF
 ### 5. 调用翻译接口
 
 ```bash
-curl -sS http://127.0.0.1:8000/translate \
+curl -sS http://127.0.0.1:4547/translate \
   -H "Content-Type: application/json" \
   -d '{
     "text": "The weather is nice today.",
@@ -138,7 +138,7 @@ curl -sS http://127.0.0.1:8000/translate \
 也可以调用 OpenAI-compatible 接口：
 
 ```bash
-curl -sS http://127.0.0.1:8000/v1/chat/completions \
+curl -sS http://127.0.0.1:4547/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "messages": [
@@ -192,9 +192,9 @@ docker compose logs -f
 另开一个终端测试：
 
 ```bash
-curl -sS http://127.0.0.1:8000/health | python -m json.tool
+curl -sS http://127.0.0.1:4547/health | python -m json.tool
 
-curl -sS http://127.0.0.1:8000/translate \
+curl -sS http://127.0.0.1:4547/translate \
   -H "Content-Type: application/json" \
   -d '{
     "text": "The weather is nice today.",
@@ -215,7 +215,7 @@ docker build -t hy-mt-fastapi:latest .
 
 docker run -d \
   --name hy-mt-fastapi \
-  -p 8000:8000 \
+  -p 4547:4547 \
   -v "$(pwd)/models:/app/models" \
   -e MODEL_PATH=/app/models/Hy-MT1.5-1.8B-1.25bit-GGUF/Hy-MT1.5-1.8B-1.25bit.gguf \
   -e CTX_SIZE=4096 \
@@ -233,7 +233,7 @@ docker logs -f hy-mt-fastapi
 测试服务：
 
 ```bash
-curl -sS http://127.0.0.1:8000/translate \
+curl -sS http://127.0.0.1:4547/translate \
   -H "Content-Type: application/json" \
   -d '{
     "text": "Hello, how are you today?",
@@ -253,13 +253,13 @@ docker rm -f hy-mt-fastapi
 ### 健康检查
 
 ```bash
-curl http://127.0.0.1:8000/health
+curl http://127.0.0.1:4547/health
 ```
 
 ### 翻译接口
 
 ```bash
-curl -sS http://127.0.0.1:8000/translate \
+curl -sS http://127.0.0.1:4547/translate \
   -H "Content-Type: application/json" \
   -d '{
     "text": "Hello, how are you today?",
@@ -277,7 +277,7 @@ curl -sS http://127.0.0.1:8000/translate \
 ### OpenAI-compatible 接口
 
 ```bash
-curl -sS http://127.0.0.1:8000/v1/chat/completions \
+curl -sS http://127.0.0.1:4547/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "messages": [
@@ -300,7 +300,7 @@ curl -sS http://127.0.0.1:8000/v1/chat/completions \
 MODEL_PATH=./models/Hy-MT1.5-1.8B-1.25bit-GGUF/Hy-MT1.5-1.8B-1.25bit.gguf
 LLAMA_CPP_DIR=./vendor/llama.cpp
 LLAMA_PORT=8080
-API_PORT=8000
+API_PORT=4547
 CTX_SIZE=4096
 THREADS=0
 N_GPU_LAYERS=0
@@ -340,7 +340,7 @@ WantedBy=multi-user.target
 
 ### 反向代理
 
-如需公网访问，建议使用 Nginx/Caddy 代理到 `127.0.0.1:8000`，并增加鉴权、HTTPS、限流和日志。
+如需公网访问，建议使用 Nginx/Caddy 代理到 `127.0.0.1:4547`，并增加鉴权、HTTPS、限流和日志。
 这个示例没有内置 API key 校验，默认适合内网或本机使用。
 
 ## 故障排查

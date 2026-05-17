@@ -5,13 +5,13 @@ services:
     image: hy-mt-fastapi:latest
     container_name: hy-mt-fastapi
     ports:
-      - "8000:8000"
+      - "4547:4547"
     environment:
       MODEL_PATH: /app/models/Hy-MT1.5-1.8B-1.25bit-GGUF/Hy-MT1.5-1.8B-1.25bit.gguf
       LLAMA_HOST: 127.0.0.1
       LLAMA_PORT: 8080
       API_HOST: 0.0.0.0
-      API_PORT: 8000
+      API_PORT: 4547
       CTX_SIZE: 4096
       N_GPU_LAYERS: 0
       THREADS: 0

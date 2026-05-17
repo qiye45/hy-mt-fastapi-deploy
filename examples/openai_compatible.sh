@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-API_URL="${API_URL:-http://127.0.0.1:8000}"
+API_URL="${API_URL:-http://127.0.0.1:4547}"
 
 curl -sS "${API_URL}/v1/chat/completions" \
   -H "Content-Type: application/json" \
