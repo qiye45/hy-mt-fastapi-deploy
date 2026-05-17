@@ -108,6 +108,7 @@ models/Hy-MT1.5-1.8B-1.25bit-GGUF/Hy-MT1.5-1.8B-1.25bit.gguf
 ```bash
 cat > .env <<'EOF'
 MODEL_NAME=AngelSlim/Hy-MT1.5-1.8B-1.25bit-GGUF
+API_KEYS=
 MODEL_PATH=./models/Hy-MT1.5-1.8B-1.25bit-GGUF/Hy-MT1.5-1.8B-1.25bit.gguf
 LLAMA_CPP_DIR=./vendor/llama.cpp
 LLAMA_SERVER_URL=http://127.0.0.1:8080
@@ -276,6 +277,14 @@ curl -sS http://127.0.0.1:4547/translate \
 
 ### OpenAI-compatible 接口
 
+模型列表：
+
+```bash
+curl -sS http://127.0.0.1:4547/v1/models | python -m json.tool
+```
+
+Chat Completions：
+
 ```bash
 curl -sS http://127.0.0.1:4547/v1/chat/completions \
   -H "Content-Type: application/json" \
@@ -292,11 +301,33 @@ curl -sS http://127.0.0.1:4547/v1/chat/completions \
   }' | python -m json.tool
 ```
 
+如果配置了 `API_KEYS`，需要携带 Bearer token：
+
+```bash
+API_KEY="your-secret" ./examples/openai_compatible.sh
+```
+
+### New API 渠道配置
+
+在 New API 后台创建或更新渠道时，可按 OpenAI 类型接入：
+
+```text
+类型: OpenAI
+API地址: http://你的服务器IP:4547
+密钥: API_KEYS 中配置的任意一个 token
+模型: 与 MODEL_NAME 相同，例如 AngelSlim/Hy-MT1.5-1.8B-1.25bit-GGUF
+默认测试模型: 与 MODEL_NAME 相同
+```
+
+如果 `.env` 中 `API_KEYS` 留空，服务端不会校验 `Authorization`，New API 里的密钥可以留空或填占位值。公网部署建议设置 `API_KEYS`，并通过 HTTPS 反向代理访问。
+
 ## 常用配置
 
 复制 `.env.example` 为 `.env` 后修改：
 
 ```bash
+MODEL_NAME=AngelSlim/Hy-MT1.5-1.8B-1.25bit-GGUF
+API_KEYS=
 MODEL_PATH=./models/Hy-MT1.5-1.8B-1.25bit-GGUF/Hy-MT1.5-1.8B-1.25bit.gguf
 LLAMA_CPP_DIR=./vendor/llama.cpp
 LLAMA_PORT=8080
@@ -310,6 +341,8 @@ DEFAULT_TEMPERATURE=0.0
 
 说明：
 
+- `MODEL_NAME` 是 OpenAI-compatible `/v1/models` 返回的模型 ID，也是 New API 中应填写的模型名。
+- `API_KEYS` 是逗号分隔的 Bearer token 列表，例如 `API_KEYS=key1,key2`。为空时 `/v1/models` 和 `/v1/chat/completions` 不做鉴权。
 - `THREADS=0` 表示启动脚本自动使用机器 CPU 核心数。
 - `CTX_SIZE` 可按业务文本长度调大，但会增加内存占用。
 - `N_GPU_LAYERS=0` 是纯 CPU。需要 GPU 时先确认本地 `llama.cpp` 编译参数和驱动环境，再调整该值。
@@ -341,7 +374,7 @@ WantedBy=multi-user.target
 ### 反向代理
 
 如需公网访问，建议使用 Nginx/Caddy 代理到 `127.0.0.1:4547`，并增加鉴权、HTTPS、限流和日志。
-这个示例没有内置 API key 校验，默认适合内网或本机使用。
+本服务支持通过 `API_KEYS` 做简单 Bearer token 校验；公网部署仍建议配合 HTTPS、访问日志和限流。
 
 ## 故障排查
 

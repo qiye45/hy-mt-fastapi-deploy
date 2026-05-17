@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from json import JSONDecodeError
 import os
 from typing import Any
 
 import httpx
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 
@@ -14,11 +16,39 @@ DEFAULT_MAX_TOKENS = int(os.getenv("DEFAULT_MAX_TOKENS", "512"))
 DEFAULT_TEMPERATURE = float(os.getenv("DEFAULT_TEMPERATURE", "0.0"))
 REQUEST_TIMEOUT = float(os.getenv("REQUEST_TIMEOUT", "600"))
 
+
+def parse_api_keys(api_keys: str | None, api_key: str | None) -> set[str]:
+    values: list[str] = []
+    if api_keys:
+        values.extend(api_keys.split(","))
+    if api_key:
+        values.append(api_key)
+    return {value.strip() for value in values if value.strip()}
+
+
+API_KEYS = parse_api_keys(os.getenv("API_KEYS"), os.getenv("API_KEY"))
+
 app = FastAPI(
     title="Hy-MT1.5 FastAPI Service",
     description="FastAPI wrapper around llama.cpp server for AngelSlim Hy-MT1.5 1.25bit GGUF.",
     version="0.1.0",
 )
+
+
+class OpenAIHTTPException(Exception):
+    def __init__(
+        self,
+        status_code: int,
+        message: str,
+        error_type: str,
+        code: str | None = None,
+        param: str | None = None,
+    ) -> None:
+        self.status_code = status_code
+        self.message = message
+        self.error_type = error_type
+        self.code = code
+        self.param = param
 
 
 class TranslateRequest(BaseModel):
@@ -33,6 +63,59 @@ class TranslateResponse(BaseModel):
     translation: str
     model: str
     upstream: dict[str, Any]
+
+
+def openai_error_payload(
+    message: str,
+    error_type: str,
+    code: str | None = None,
+    param: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "error": {
+            "message": message,
+            "type": error_type,
+            "param": param,
+            "code": code,
+        }
+    }
+
+
+@app.exception_handler(OpenAIHTTPException)
+async def openai_exception_handler(_request: Request, exc: OpenAIHTTPException) -> JSONResponse:
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=openai_error_payload(exc.message, exc.error_type, exc.code, exc.param),
+    )
+
+
+async def require_openai_auth(authorization: str | None = Header(default=None)) -> None:
+    if not API_KEYS:
+        return
+    if not authorization or not authorization.startswith("Bearer "):
+        raise OpenAIHTTPException(
+            status_code=401,
+            message="Missing bearer token.",
+            error_type="authentication_error",
+            code="missing_api_key",
+        )
+    token = authorization.removeprefix("Bearer ").strip()
+    if token not in API_KEYS:
+        raise OpenAIHTTPException(
+            status_code=401,
+            message="Invalid bearer token.",
+            error_type="authentication_error",
+            code="invalid_api_key",
+        )
+
+
+def model_metadata() -> dict[str, Any]:
+    return {
+        "id": MODEL_NAME,
+        "object": "model",
+        "created": 0,
+        "owned_by": "hy-mt-fastapi",
+    }
 
 
 def build_translation_prompt(payload: TranslateRequest) -> str:
@@ -52,11 +135,18 @@ async def post_llama(path: str, payload: dict[str, Any]) -> dict[str, Any]:
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:
             detail = exc.response.text
-            raise HTTPException(status_code=exc.response.status_code, detail=detail) from exc
+            raise OpenAIHTTPException(
+                status_code=exc.response.status_code,
+                message=detail,
+                error_type="upstream_error",
+                code="llama_server_error",
+            ) from exc
         except httpx.HTTPError as exc:
-            raise HTTPException(
+            raise OpenAIHTTPException(
                 status_code=502,
-                detail=f"llama-server is not reachable at {LLAMA_SERVER_URL}: {exc}",
+                message=f"llama-server is not reachable at {LLAMA_SERVER_URL}: {exc}",
+                error_type="upstream_error",
+                code="llama_server_unreachable",
             ) from exc
     return response.json()
 
@@ -114,10 +204,28 @@ async def translate(payload: TranslateRequest) -> TranslateResponse:
     )
 
 
-@app.post("/v1/chat/completions")
+@app.get("/v1/models", dependencies=[Depends(require_openai_auth)])
+async def list_models() -> dict[str, Any]:
+    return {"object": "list", "data": [model_metadata()]}
+
+
+@app.post("/v1/chat/completions", dependencies=[Depends(require_openai_auth)])
 async def chat_completions(request: Request) -> dict[str, Any]:
-    payload = await request.json()
+    try:
+        payload = await request.json()
+    except JSONDecodeError as exc:
+        raise OpenAIHTTPException(
+            status_code=400,
+            message="JSON body must be a valid object.",
+            error_type="invalid_request_error",
+            code="invalid_json_body",
+        ) from exc
     if not isinstance(payload, dict):
-        raise HTTPException(status_code=400, detail="JSON body must be an object.")
+        raise OpenAIHTTPException(
+            status_code=400,
+            message="JSON body must be an object.",
+            error_type="invalid_request_error",
+            code="invalid_json_body",
+        )
     payload.setdefault("model", MODEL_NAME)
     return await post_llama("/v1/chat/completions", payload)
